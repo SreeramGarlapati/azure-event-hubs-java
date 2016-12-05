@@ -24,4 +24,7 @@ public final class AmqpErrorCode
 
 	// connection errors
 	public static final Symbol ConnectionForced = Symbol.getSymbol("amqp:connection:forced");
+        
+        // transport errors
+        public static final Symbol UnresolvedAddressError = Symbol.getSymbol("amqp:transport:address-resolution-error");
 }

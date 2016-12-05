@@ -16,6 +16,7 @@ import org.apache.qpid.proton.amqp.transport.ErrorCondition;
 import com.microsoft.azure.servicebus.amqp.AmqpErrorCode;
 import com.microsoft.azure.servicebus.amqp.AmqpException;
 import com.microsoft.azure.servicebus.amqp.AmqpResponseCode;
+import java.nio.channels.UnresolvedAddressException;
 
 final class ExceptionUtil
 {
@@ -90,6 +91,10 @@ final class ExceptionUtil
 		{
 			return new ServiceBusException(false, new AmqpException(errorCondition));
 		}
+                else if (errorCondition.getCondition() == AmqpErrorCode.UnresolvedAddressError)
+                {
+                        return new CommunicationException(errorCondition.getDescription(), new UnresolvedAddressException());
+                }
 
 		return new ServiceBusException(ClientConstants.DEFAULT_IS_TRANSIENT, errorCondition.getDescription());
 	}
