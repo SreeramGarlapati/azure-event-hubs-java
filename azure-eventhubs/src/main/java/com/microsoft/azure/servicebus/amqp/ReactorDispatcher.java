@@ -9,7 +9,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.Pipe;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.HashSet;
 
 import org.apache.qpid.proton.engine.BaseHandler;
 import org.apache.qpid.proton.engine.Event;
@@ -104,31 +103,24 @@ public final class ReactorDispatcher
 		@Override
 		public void run(Selectable selectable)
 		{
-			try
-			{
-				ioSignal.source().read(ByteBuffer.allocate(1024));
-			}
-			catch(ClosedChannelException ignorePipeClosedDuringReactorShutdown)
-			{
-			}
-			catch(IOException ioException)
-			{
-				throw new RuntimeException(ioException);
-			}
-			
-			final HashSet<BaseHandler> completedWork = new HashSet<BaseHandler>();
-			
-			BaseHandler topWork = workQueue.poll(); 
-			while (topWork != null)
-			{
-				if (!completedWork.contains(topWork))
-				{
-					topWork.onTimerTask(null);
-					completedWork.add(topWork);
-				}
-				
-				topWork = workQueue.poll();
-			}
+                    try
+                    {
+                        ioSignal.source().read(ByteBuffer.allocate(1024));
+                    }
+                    catch(ClosedChannelException ignorePipeClosedDuringReactorShutdown)
+                    {
+                    }
+                    catch(IOException ioException)
+                    {
+                        throw new RuntimeException(ioException);
+                    }
+
+                    BaseHandler topWork = workQueue.poll(); 
+                    while (topWork != null)
+                    {
+                        topWork.onTimerTask(null);	
+                        topWork = workQueue.poll();
+                    }
 		}
 	}
 	

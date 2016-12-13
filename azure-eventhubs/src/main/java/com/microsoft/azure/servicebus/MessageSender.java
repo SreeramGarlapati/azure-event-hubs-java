@@ -15,6 +15,7 @@ import java.util.Comparator;
 import java.util.function.Consumer;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -50,7 +51,6 @@ import com.microsoft.azure.servicebus.amqp.DispatchHandler;
 import com.microsoft.azure.servicebus.amqp.IAmqpSender;
 import com.microsoft.azure.servicebus.amqp.IOperationResult;
 import com.microsoft.azure.servicebus.amqp.SendLinkHandler;
-import java.util.List;
 
 /**
  * Abstracts all amqp related details
@@ -73,13 +73,14 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
         private final ActiveClientTokenManager activeClientTokenManager;
         private final String tokenAudience;
         
-	private Sender sendLink;
-	private CompletableFuture<MessageSender> linkFirstOpen; 
+        private volatile Exception lastKnownLinkError;
+	private volatile Instant lastKnownErrorReportedAt;
+        private volatile Sender sendLink;
+	
+        private CompletableFuture<MessageSender> linkFirstOpen; 
 	private int linkCredit;
 	private TimeoutTracker openLinkTracker;
-	private Exception lastKnownLinkError;
-	private Instant lastKnownErrorReportedAt;
-        private boolean creatingLink;
+	private boolean creatingLink;
 
         public static CompletableFuture<MessageSender> create(
 			final MessagingFactory factory,
@@ -215,11 +216,11 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 		final boolean isRetrySend = (onSend != null);
 		final String tag = (deliveryTag == null) ? UUID.randomUUID().toString().replace("-", StringUtil.EMPTY) : deliveryTag;
 		
-		final CompletableFuture<Void> onSendFuture = (onSend == null) ? new CompletableFuture<Void>() : onSend;
+		final CompletableFuture<Void> onSendFuture = (onSend == null) ? new CompletableFuture<>() : onSend;
 		
 		final ReplayableWorkItem<Void> sendWaiterData = (tracker == null) ?
-				new ReplayableWorkItem<Void>(bytes, arrayOffset, messageFormat, onSendFuture, this.operationTimeout) : 
-				new ReplayableWorkItem<Void>(bytes, arrayOffset, messageFormat, onSendFuture, tracker);
+				new ReplayableWorkItem<>(bytes, arrayOffset, messageFormat, onSendFuture, this.operationTimeout) : 
+				new ReplayableWorkItem<>(bytes, arrayOffset, messageFormat, onSendFuture, tracker);
 
 		if (lastKnownError != null)
 		{
@@ -235,6 +236,21 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 		try
 		{
 			this.underlyingFactory.scheduleOnReactorThread(this.sendWork);
+                        ScheduledFuture<?> sendTimeoutTask = null;
+
+                        if (timeoutTask == null) {
+                            sendTimeoutTask = Timer.schedule(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (!sendWaiterData.getWork().isDone()) {
+                                        MessageSender.this.pendingSendsData.remove(deliveryTag);
+                                        MessageSender.this.throwSenderTimeout(sendWaiterData.getWork(), sendWaiterData.getLastKnownException());
+                                    }
+                                }
+                            }, this.operationTimeout, TimerType.OneTimeRun);
+                        }
+
+                        sendWaiterData.setTimeoutTask(timeoutTask == null ? sendTimeoutTask : timeoutTask);
 		}
 		catch (IOException ioException)
 		{
@@ -318,7 +334,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 		}
 		catch(BufferOverflowException exception)
 		{
-			final CompletableFuture<Void> sendTask = new CompletableFuture<Void>();
+			final CompletableFuture<Void> sendTask = new CompletableFuture<>();
 			sendTask.completeExceptionally(new PayloadSizeExceededException(String.format("Size of the payload exceeded Maximum message size: %s kb", ClientConstants.MAX_MESSAGE_LENGTH_BYTES / 1024), exception));
 			return sendTask;
 		}
@@ -751,7 +767,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 				{
 					// CoreSend could enque Sends into PendingSends Queue and can fail the SendCompletableFuture
 					// (when It fails to schedule the ProcessSendWork on reactor Thread)
-					this.pendingSendsData.remove(sendData);
+					this.pendingSendsData.remove(deliveryTag.getDeliveryTag());
 					continue;
 				}
 				
@@ -778,21 +794,6 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 				if (linkAdvance)
 				{
 					this.linkCredit--;
-					
-					ScheduledFuture<?> timeoutTask = Timer.schedule(new Runnable()
-					{
-						@Override
-						public void run()
-						{
-							if (!sendData.getWork().isDone())
-							{
-								MessageSender.this.pendingSendsData.remove(deliveryTag);
-								MessageSender.this.throwSenderTimeout(sendData.getWork(), sendData.getLastKnownException());
-							}
-						}
-					}, this.operationTimeout, TimerType.OneTimeRun);
-					
-					sendData.setTimeoutTask(timeoutTask);
 					sendData.setWaitingForAck();
 				}
 				else

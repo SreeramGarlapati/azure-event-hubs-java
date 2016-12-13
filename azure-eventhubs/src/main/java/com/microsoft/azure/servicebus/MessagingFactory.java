@@ -224,6 +224,7 @@ public class MessagingFactory extends ClientEntity implements IAmqpConnection, I
 		else
 		{
                         final Connection currentConnection = this.connection;
+                        
 			for (Link link: this.registeredLinks)
 			{
 				if (link.getLocalState() != EndpointState.CLOSED && link.getRemoteState() != EndpointState.CLOSED)
