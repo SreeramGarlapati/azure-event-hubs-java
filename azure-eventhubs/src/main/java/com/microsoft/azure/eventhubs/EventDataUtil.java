@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 import org.apache.qpid.proton.message.Message;
 
 import com.microsoft.azure.servicebus.amqp.AmqpConstants;
+import com.microsoft.azure.servicebus.PassByRef;
 
 /*
  * Internal utility class for EventData
@@ -32,16 +33,20 @@ final class EventDataUtil {
 	
 	private EventDataUtil(){}
 
-	static LinkedList<EventData> toEventDataCollection(final Collection<Message> messages) {
+	static LinkedList<EventData> toEventDataCollection(final Collection<Message> messages, final PassByRef<Message> lastMessageRef) {
             
 		if (messages == null) {
 			return null;
 		}
 
 		LinkedList<EventData> events = new LinkedList<>();
-		for (Message message : messages) {
+                for (Message message : messages) {
+                    
 			events.add(new EventData(message));
-		}
+                        
+                        if (lastMessageRef != null)
+                            lastMessageRef.set(message);
+                }
 
 		return events;
 	}

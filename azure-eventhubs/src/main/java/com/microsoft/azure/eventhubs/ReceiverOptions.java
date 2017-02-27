@@ -5,21 +5,31 @@
 package com.microsoft.azure.eventhubs;
 
 /**
- * Represents various options which can be set during the creation of a {@link PartitionReceiver}.
+ * Represents various optional behaviors which can be turned on or off during the creation of a {@link PartitionReceiver}.
  */
 public final class ReceiverOptions {
     
     private boolean enableReceiverRuntimeMetric;
     
     /**
-     * Knob to enable/disable runtime metric of the receiver. If this is enabled and passed to {@link EventHubClient#createReceiver(...)}  
-     * @return the {@link boolean} indicating whether the runtime metric of the receiver should be enabled
+     * Knob to enable/disable runtime metric of the receiver. If this is set to true and is passed to {@link EventHubClient#createReceiver(...)},
+     * after the first {@link PartitionReceiver#receive(int)} call, {@link PartitionReceiver#getRuntimeInfo()} is populated.
+     * <p>
+     * Enabling this knob will add 3 additional properties to all {@link EventData}'s received on the {@link EventHubClient#createReceiver(...)}.
+     * @return the {@link boolean} indicating, whether, the runtime metric of the receiver was enabled
      */
     public boolean getEnableReceiverRuntimeMetric() {
         
         return this.enableReceiverRuntimeMetric;
     }
     
+    /**
+     * Knob to enable/disable runtime metric of the receiver. If this is set to true and is passed to {@link EventHubClient#createReceiver(...)},
+     * after the first {@link PartitionReceiver#receive(int)} call, {@link PartitionReceiver#getRuntimeInfo()} is populated.
+     * <p>
+     * Enabling this knob will add 3 additional properties to all {@link EventData}'s received on the {@link EventHubClient#createReceiver(...)}.
+     * @param value the {@link boolean} to indicate, whether, the runtime metric of the receiver should be enabled
+     */
     public void setEnableReceiverRuntimeMetric(boolean value) {
         
         this.enableReceiverRuntimeMetric = value;

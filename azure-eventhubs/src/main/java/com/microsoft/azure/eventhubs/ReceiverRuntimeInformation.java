@@ -8,9 +8,9 @@ import java.time.Instant;
 
 /**
  * Represents the temporal receiver runtime information for a {@link PartitionReceiver}.
- * Current received {@link EventData} and {@link ReceiverRuntimeInfo} can be used to find approximate value of pending events (which are not processed yet).
+ * Current received {@link EventData} and {@link ReceiverRuntimeInformation} can be used to find approximate value of pending events (which are not processed yet).
  */
-public final class ReceiverRuntimeInfo {
+public final class ReceiverRuntimeInformation {
     
     private final String partitionId;
     
@@ -19,18 +19,13 @@ public final class ReceiverRuntimeInfo {
     private String lastEnqueuedOffset;
     private Instant retrievalTime;
     
-    ReceiverRuntimeInfo(
-            final String partitionId,
-            final long sequenceNumber,
-            final Instant enqueuedTime,
-            final String offset) {
+    ReceiverRuntimeInformation(final String partitionId) {
         
         this.partitionId = partitionId;
-        this.setRuntimeInfo(sequenceNumber, enqueuedTime, offset);
     }
     
     /**
-     * Get PartitionId of the {@link PartitionReceiver} for which the {@link ReceiverRuntimeInfo} is returned.
+     * Get PartitionId of the {@link PartitionReceiver} for which the {@link ReceiverRuntimeInformation} is returned.
      * @return Partition Identifier
      */
     public String getPartitionId() {
@@ -66,7 +61,7 @@ public final class ReceiverRuntimeInfo {
     }
     
     /**
-     * Get the timestamp at which this {@link ReceiverRuntimeInfo} was constructed.
+     * Get the timestamp at which this {@link ReceiverRuntimeInformation} was constructed.
      * @return retrieval time
      */
     public Instant getRetrievalTime() {
@@ -74,7 +69,7 @@ public final class ReceiverRuntimeInfo {
         return this.retrievalTime;
     }
     
-    void setRuntimeInfo(final long sequenceNumber, final Instant enqueuedTime, final String offset) {
+    void setRuntimeInformation(final long sequenceNumber, final Instant enqueuedTime, final String offset) {
         
         this.lastSequenceNumber = sequenceNumber;
         this.lastEnqueuedTime = enqueuedTime;

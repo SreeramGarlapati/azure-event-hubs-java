@@ -85,6 +85,10 @@ public final class ClientConstants
         public static final String MANAGEMENT_STATUS_DESCRIPTION_KEY = "status-description";
         public static final String MANAGEMENT_RESPONSE_ERROR_CONDITION = "error-condition";
         
+        public static final Symbol LAST_ENQUEUED_SEQUENCE_NUMBER = Symbol.valueOf(MANAGEMENT_RESULT_LAST_ENQUEUED_SEQUENCE_NUMBER);
+        public static final Symbol LAST_ENQUEUED_OFFSET = Symbol.valueOf(MANAGEMENT_RESULT_LAST_ENQUEUED_OFFSET);
+        public static final Symbol LAST_ENQUEUED_TIME_UTC = Symbol.valueOf(MANAGEMENT_RESULT_LAST_ENQUEUED_TIME_UTC);
+        
         public static final String AMQP_PUT_TOKEN_FAILED_ERROR = "Put token failed. status-code: %s, status-description: %s";
         public static final String TOKEN_AUDIENCE_FORMAT = "amqp://%s/%s";
 

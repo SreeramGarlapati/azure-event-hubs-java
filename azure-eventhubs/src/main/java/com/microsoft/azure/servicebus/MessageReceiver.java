@@ -525,6 +525,10 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     if (linkProperties != null)
                         receiver.setProperties(linkProperties);
 
+                    final Symbol[] desiredCapabilities = MessageReceiver.this.settingsProvider.getDesiredCapabilities();
+                    if (desiredCapabilities != null)
+                        receiver.setDesiredCapabilities(desiredCapabilities);
+                    
                     final ReceiveLinkHandler handler = new ReceiveLinkHandler(MessageReceiver.this);
                     BaseHandler.setHandler(receiver, handler);
                     MessageReceiver.this.underlyingFactory.registerForConnectionError(receiver);
