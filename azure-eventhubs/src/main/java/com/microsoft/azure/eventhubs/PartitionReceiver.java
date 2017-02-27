@@ -489,7 +489,7 @@ public final class PartitionReceiver extends ClientEntity implements IReceiverSe
         @Override
         public Symbol[] getDesiredCapabilities() {
 
-            return this.receiverOptions.getEnableReceiverRuntimeMetric()
+            return this.receiverOptions != null && this.receiverOptions.getEnableReceiverRuntimeMetric()
                     ? new Symbol[] { AmqpConstants.ENABLE_RECEIVER_RUNTIME_METRIC_NAME }
                     : null;
         }
