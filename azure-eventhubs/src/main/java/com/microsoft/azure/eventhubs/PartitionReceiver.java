@@ -69,6 +69,7 @@ public final class PartitionReceiver extends ClientEntity implements IReceiverSe
 	private Long epoch;
 	private boolean isEpochReceiver;
 	private ReceivePump receivePump;
+        private ReceiverRuntimeInfo runtimeInfo;
 	
 	private PartitionReceiver(MessagingFactory factory, 
 			final String eventHubName, 
@@ -207,6 +208,16 @@ public final class PartitionReceiver extends ClientEntity implements IReceiverSe
 	{
 		return this.epoch;
 	}
+        
+        /**
+         * Gets the temporal {@link ReceiverRuntimeInfo} for this EventHub partition.
+         * In general, this represents where this {@link PartitionReceiver}'s current end of stream is.
+         * @return receiver runtime information
+         */
+        public final ReceiverRuntimeInfo getRuntimeInfo() {
+            
+            return this.runtimeInfo;
+        }
 
 	/**
 	 * Synchronous version of {@link #receive}. 

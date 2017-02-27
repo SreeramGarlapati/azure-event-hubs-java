@@ -520,7 +520,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     // use explicit settlement via dispositions (not pre-settled)
                     receiver.setSenderSettleMode(SenderSettleMode.UNSETTLED);
                     receiver.setReceiverSettleMode(ReceiverSettleMode.SECOND);
-
+                    
                     final Map<Symbol, Object> linkProperties = MessageReceiver.this.settingsProvider.getProperties();
                     if (linkProperties != null)
                         receiver.setProperties(linkProperties);
