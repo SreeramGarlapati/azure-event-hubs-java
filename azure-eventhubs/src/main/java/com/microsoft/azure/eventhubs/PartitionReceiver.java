@@ -220,7 +220,7 @@ public final class PartitionReceiver extends ClientEntity implements IReceiverSe
          * at the time {@link ReceiverRuntimeInformation#getRetrievalTime()}.
          * @return receiver runtime information
          */
-        public final ReceiverRuntimeInformation getRuntimeInfo() {
+        public final ReceiverRuntimeInformation getRuntimeInformation() {
             
             return this.runtimeInformation;
         }
@@ -306,7 +306,7 @@ public final class PartitionReceiver extends ClientEntity implements IReceiverSe
 			public Iterable<EventData> apply(Collection<Message> amqpMessages)
 			{
                                 PassByRef<Message> lastMessageRef = null;
-                                if (PartitionReceiver.this.receiverOptions != null && PartitionReceiver.this.receiverOptions.getEnableReceiverRuntimeMetric())
+                                if (PartitionReceiver.this.receiverOptions != null && PartitionReceiver.this.receiverOptions.getReceiverRuntimeMetricEnabled())
                                    lastMessageRef = new PassByRef<>();
                                 
 				Iterable<EventData> events = EventDataUtil.toEventDataCollection(amqpMessages, lastMessageRef);
@@ -489,7 +489,7 @@ public final class PartitionReceiver extends ClientEntity implements IReceiverSe
         @Override
         public Symbol[] getDesiredCapabilities() {
 
-            return this.receiverOptions != null && this.receiverOptions.getEnableReceiverRuntimeMetric()
+            return this.receiverOptions != null && this.receiverOptions.getReceiverRuntimeMetricEnabled()
                     ? new Symbol[] { AmqpConstants.ENABLE_RECEIVER_RUNTIME_METRIC_NAME }
                     : null;
         }

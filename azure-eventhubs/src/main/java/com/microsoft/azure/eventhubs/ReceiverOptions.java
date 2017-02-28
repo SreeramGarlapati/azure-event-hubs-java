@@ -9,7 +9,7 @@ package com.microsoft.azure.eventhubs;
  */
 public final class ReceiverOptions {
     
-    private boolean enableReceiverRuntimeMetric;
+    private boolean receiverRuntimeMetricEnabled;
     
     /**
      * Knob to enable/disable runtime metric of the receiver. If this is set to true and is passed to {@link EventHubClient#createReceiver(...)},
@@ -18,9 +18,9 @@ public final class ReceiverOptions {
      * Enabling this knob will add 3 additional properties to all {@link EventData}'s received on the {@link EventHubClient#createReceiver(...)}.
      * @return the {@link boolean} indicating, whether, the runtime metric of the receiver was enabled
      */
-    public boolean getEnableReceiverRuntimeMetric() {
+    public boolean getReceiverRuntimeMetricEnabled() {
         
-        return this.enableReceiverRuntimeMetric;
+        return this.receiverRuntimeMetricEnabled;
     }
     
     /**
@@ -30,8 +30,8 @@ public final class ReceiverOptions {
      * Enabling this knob will add 3 additional properties to all {@link EventData}'s received on the {@link EventHubClient#createReceiver(...)}.
      * @param value the {@link boolean} to indicate, whether, the runtime metric of the receiver should be enabled
      */
-    public void setEnableReceiverRuntimeMetric(boolean value) {
+    public void setReceiverRuntimeMetricEnabled(boolean value) {
         
-        this.enableReceiverRuntimeMetric = value;
+        this.receiverRuntimeMetricEnabled = value;
     }
 }

@@ -39,10 +39,10 @@ public class ReceiverRuntimeMetricsTest  extends ApiTestBase {
         ehClient = EventHubClient.createFromConnectionStringSync(connectionString.toString());
         
         ReceiverOptions options = new ReceiverOptions();
-        options.setEnableReceiverRuntimeMetric(true);
+        options.setReceiverRuntimeMetricEnabled(true);
         
         ReceiverOptions optionsWithMetricsDisabled = new ReceiverOptions();
-        optionsWithMetricsDisabled.setEnableReceiverRuntimeMetric(false);
+        optionsWithMetricsDisabled.setReceiverRuntimeMetricEnabled(false);
         
         receiverWithOptions = ehClient.createReceiverSync(cgName, partitionId, Instant.EPOCH, options);
         receiverWithoutOptions = ehClient.createReceiverSync(cgName, partitionId, Instant.EPOCH);
@@ -58,20 +58,20 @@ public class ReceiverRuntimeMetricsTest  extends ApiTestBase {
     @Test()
     public void testRuntimeMetricsReturnedWhenEnabled() throws ServiceBusException {
 
-        Assert.assertTrue(receiverWithOptions.getRuntimeInfo() != null);
-        Assert.assertTrue(receiverWithOptions.getRuntimeInfo().getLastEnqueuedTime().isAfter(beforeTestStart));
+        Assert.assertTrue(receiverWithOptions.getRuntimeInformation() != null);
+        Assert.assertTrue(receiverWithOptions.getRuntimeInformation().getLastEnqueuedTime().isAfter(beforeTestStart));
     }
 
     @Test()
     public void testRuntimeMetricsWhenDisabled() throws ServiceBusException {
 
-        Assert.assertTrue(receiverWithOptionsDisabled.getRuntimeInfo() == null);
+        Assert.assertTrue(receiverWithOptionsDisabled.getRuntimeInformation() == null);
     }
     
     @Test()
     public void testRuntimeMetricsDefaultDisabled() throws ServiceBusException {
 
-        Assert.assertTrue(receiverWithoutOptions.getRuntimeInfo() == null);
+        Assert.assertTrue(receiverWithoutOptions.getRuntimeInformation() == null);
     }
     
     @AfterClass()

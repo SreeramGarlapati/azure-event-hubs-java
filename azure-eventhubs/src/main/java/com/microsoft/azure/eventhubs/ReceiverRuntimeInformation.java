@@ -19,7 +19,7 @@ public final class ReceiverRuntimeInformation {
     private String lastEnqueuedOffset;
     private Instant retrievalTime;
     
-    ReceiverRuntimeInformation(final String partitionId) {
+    public ReceiverRuntimeInformation(final String partitionId) {
         
         this.partitionId = partitionId;
     }
