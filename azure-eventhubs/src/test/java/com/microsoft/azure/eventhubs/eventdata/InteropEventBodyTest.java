@@ -8,8 +8,13 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ExecutionException;
+import java.util.LinkedList;
+import java.util.List;
 
+import org.apache.qpid.proton.amqp.Binary;
+import org.apache.qpid.proton.amqp.messaging.AmqpSequence;
 import org.apache.qpid.proton.amqp.messaging.AmqpValue;
+import org.apache.qpid.proton.amqp.messaging.Data;
 import org.apache.qpid.proton.Proton;
 import org.apache.qpid.proton.message.Message;
 
@@ -20,6 +25,7 @@ import org.junit.Test;
 
 import com.microsoft.azure.eventhubs.EventData;
 import com.microsoft.azure.eventhubs.EventHubClient;
+import com.microsoft.azure.eventhubs.IllegalEventDataBodyException;
 import com.microsoft.azure.eventhubs.PartitionReceiver;
 import com.microsoft.azure.eventhubs.lib.ApiTestBase;
 import com.microsoft.azure.eventhubs.lib.TestContext;
@@ -28,11 +34,6 @@ import com.microsoft.azure.servicebus.MessageSender;
 import com.microsoft.azure.servicebus.MessagingFactory;
 import com.microsoft.azure.servicebus.ServiceBusException;
 import com.microsoft.azure.servicebus.amqp.AmqpConstants;
-import java.util.LinkedList;
-import java.util.List;
-import org.apache.qpid.proton.amqp.Binary;
-import org.apache.qpid.proton.amqp.messaging.AmqpSequence;
-import org.apache.qpid.proton.amqp.messaging.Data;
 
 public class InteropEventBodyTest extends ApiTestBase {
     
@@ -75,6 +76,13 @@ public class InteropEventBodyTest extends ApiTestBase {
         receivedEvent = receiver.receiveSync(10).iterator().next();
         
         Assert.assertTrue(receivedEvent.getSystemProperties().get(AmqpConstants.AMQP_VALUE).equals(payload));
+        
+        try {
+            receivedEvent.getBody();
+            Assert.assertTrue(false);
+        } catch (IllegalEventDataBodyException exception) {
+            Assert.assertTrue(exception.getSystemPropertyName().equals(AmqpConstants.AMQP_VALUE));
+        }
     }
     
     @Test
@@ -90,6 +98,13 @@ public class InteropEventBodyTest extends ApiTestBase {
         receivedEvent = receiver.receiveSync(10).iterator().next();
         
         Assert.assertTrue(new String(((List<Data>)(receivedEvent.getSystemProperties().get(AmqpConstants.AMQP_SEQUENCE))).get(0).getValue().getArray()).equals(payload));
+    
+        try {
+            receivedEvent.getBody();
+            Assert.assertTrue(false);
+        } catch (IllegalEventDataBodyException exception) {
+            Assert.assertTrue(exception.getSystemPropertyName().equals(AmqpConstants.AMQP_SEQUENCE));
+        }
     }
     
     @AfterClass

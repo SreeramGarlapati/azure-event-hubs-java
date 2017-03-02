@@ -89,17 +89,15 @@ public class EventData implements Serializable
                 
                 Section bodySection = amqpMessage.getBody();
                 if (bodySection != null) {
-                    if (bodySection instanceof Data) {
-                        this.bodyType = Data.class;
+                    this.bodyType = bodySection.getClass();
+                    if (bodySection instanceof Data)
                         this.bodyData =  ((Data) bodySection).getValue();
-                    } else if (bodySection instanceof AmqpValue) {
-                        this.bodyType = AmqpValue.class;
+                    else if (bodySection instanceof AmqpValue)
                         receiveProperties.put(AmqpConstants.AMQP_VALUE, ((AmqpValue) bodySection).getValue()); 
-                    } else if (bodySection instanceof AmqpSequence) {
-                        this.bodyType = AmqpSequence.class;
+                    else if (bodySection instanceof AmqpSequence)
                         receiveProperties.put(AmqpConstants.AMQP_SEQUENCE, ((AmqpSequence) bodySection).getValue());
-                    }
-                } else {
+                }
+                else {
                     this.bodyType = Data.class;
                 }
                 
@@ -201,7 +199,7 @@ public class EventData implements Serializable
 	public byte[] getBody()
 	{
             if (this.bodyType != Data.class) {
-                throw new 
+                throw new IllegalEventDataBodyException(this.bodyType);
             }
             
             return this.bodyData == null ? null : this.bodyData.getArray();
