@@ -72,7 +72,7 @@ public final class ReactorDispatcher
 	{
 		try
 		{
-			this.ioSignal.sink().write(ByteBuffer.allocate(1));
+			while (this.ioSignal.sink().write(ByteBuffer.allocate(1)) == 0) {}
 		}
 		catch(ClosedChannelException ignorePipeClosedDuringReactorShutdown)
 		{
@@ -116,18 +116,11 @@ public final class ReactorDispatcher
 				throw new RuntimeException(ioException);
 			}
 			
-			final HashSet<BaseHandler> completedWork = new HashSet<BaseHandler>();
 			
-			BaseHandler topWork = workQueue.poll(); 
-			while (topWork != null)
+			BaseHandler topWork; 
+			while ((topWork = workQueue.poll()) != null)
 			{
-				if (!completedWork.contains(topWork))
-				{
-					topWork.onTimerTask(null);
-					completedWork.add(topWork);
-				}
-				
-				topWork = workQueue.poll();
+                                topWork.onTimerTask(null);
 			}
 		}
 	}

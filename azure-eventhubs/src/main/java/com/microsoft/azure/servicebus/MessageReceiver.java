@@ -59,11 +59,11 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 	private final IReceiverSettingsProvider settingsProvider;
         private final String tokenAudience;
         private final ActiveClientTokenManager activeClientTokenManager;
-                    
+        private final WorkItem<MessageReceiver> linkOpen;
+	private final ConcurrentLinkedQueue<Message> prefetchedMessages;
+	            
 	private int prefetchCount;
-        private ConcurrentLinkedQueue<Message> prefetchedMessages;
-	private Receiver receiveLink;
-	private WorkItem<MessageReceiver> linkOpen;
+        private Receiver receiveLink;
 	private Duration receiveTimeout;
         private Message lastReceivedMessage;
 	private Exception lastKnownLinkError;
@@ -95,51 +95,28 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 		// onOperationTimeout delegate - per receive call
 		this.onOperationTimedout = new Runnable()
 		{
-			public void run()
-			{
-				WorkItem<Collection<Message>> topWorkItem = null;
-				boolean workItemTimedout = false;
-				while((topWorkItem = MessageReceiver.this.pendingReceives.peek()) != null)
-				{
-					if (topWorkItem.getTimeoutTracker().remaining().toMillis() <= MessageReceiver.MIN_TIMEOUT_DURATION_MILLIS)
-					{
-						WorkItem<Collection<Message>> dequedWorkItem = MessageReceiver.this.pendingReceives.poll();
-						if (dequedWorkItem != null)
-						{
-							workItemTimedout = true;
-							dequedWorkItem.getWork().complete(null);
-						}
-						else
-							break;
-					}
-					else
-					{
-						MessageReceiver.this.scheduleOperationTimer(topWorkItem.getTimeoutTracker());
-						break;
-					}
-				}
-
-				if (workItemTimedout)
-				{
-					// workaround to push the sendflow-performative to reactor
-					// this sets the receiveLink endpoint to modified state
-					// (and increment the unsentCredits in proton by 0)
-					try
-					{
-						MessageReceiver.this.underlyingFactory.scheduleOnReactorThread(new DispatchHandler()
-						{
-							@Override
-							public void onEvent()
-							{
-								MessageReceiver.this.receiveLink.flow(0);
-							}
-						});
-					}
-					catch (IOException ignore)
-					{
-					}
-				}
-			}
+                    public void run()
+                    {
+                        WorkItem<Collection<Message>> topWorkItem = null;
+                        while((topWorkItem = MessageReceiver.this.pendingReceives.peek()) != null)
+                        {
+                            if (topWorkItem.getTimeoutTracker().remaining().toMillis() <= MessageReceiver.MIN_TIMEOUT_DURATION_MILLIS)
+                            {
+                                WorkItem<Collection<Message>> dequedWorkItem = MessageReceiver.this.pendingReceives.poll();
+                                if (dequedWorkItem != null)
+                                {
+                                        dequedWorkItem.getWork().complete(null);
+                                }
+                                else
+                                        break;
+                            }
+                            else
+                            {
+                                MessageReceiver.this.scheduleOperationTimer(topWorkItem.getTimeoutTracker());
+                                break;
+                            }
+                        }
+                    }
 		};
                 
                 this.tokenAudience = String.format("amqp://%s/%s", underlyingFactory.getHostName(), receivePath);
@@ -231,7 +208,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 		{
 			if (returnMessages == null)
 			{
-				returnMessages = new LinkedList<Message>();
+				returnMessages = new LinkedList<>();
 			}
 
 			returnMessages.add(currentMessage);
@@ -304,7 +281,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 			this.scheduleOperationTimer(TimeoutTracker.create(this.receiveTimeout));
 		}
 
-		CompletableFuture<Collection<Message>> onReceive = new CompletableFuture<Collection<Message>>();
+		CompletableFuture<Collection<Message>> onReceive = new CompletableFuture<>();
 		
 		try
 		{
