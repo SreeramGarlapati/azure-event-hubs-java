@@ -103,8 +103,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                             if (topWorkItem.getTimeoutTracker().remaining().toMillis() <= MessageReceiver.MIN_TIMEOUT_DURATION_MILLIS)
                             {
                                 WorkItem<Collection<Message>> dequedWorkItem = MessageReceiver.this.pendingReceives.poll();
-                                if (dequedWorkItem != null)
-                                {
+                                if (dequedWorkItem != null && dequedWorkItem.getWork() != null && !dequedWorkItem.getWork().isDone()) {
                                         dequedWorkItem.getWork().complete(null);
                                 }
                                 else
@@ -282,33 +281,33 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 		}
 
 		CompletableFuture<Collection<Message>> onReceive = new CompletableFuture<>();
+                pendingReceives.offer(new ReceiveWorkItem(onReceive, receiveTimeout, maxMessageCount));
 		
-		try
-		{
-			this.underlyingFactory.scheduleOnReactorThread(new DispatchHandler()
-			{
-				@Override
-				public void onEvent()
-				{
-					final List<Message> messages = receiveCore(maxMessageCount);
-					if (messages != null)
-						onReceive.complete(messages);
-					else
-						pendingReceives.offer(new ReceiveWorkItem(onReceive, receiveTimeout, maxMessageCount));
+		try {
+                    this.underlyingFactory.scheduleOnReactorThread(new DispatchHandler() {
+                        @Override
+                        public void onEvent() {
 
-					// calls to reactor should precede enqueue of the workItem into PendingReceives.
-					// This will allow error handling to enact on the enqueued workItem.
-					if (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED)
-					{
-                                                createReceiveLink();
-					}
-				}
-			});
+                            // handle the case when PendingReceive queue got a new Receiver and PrefetchQueue is already full
+                            // and as-a-result, reactor would never raise onFlow event
+                            if (!prefetchedMessages.isEmpty()) {
+                                ReceiveWorkItem pendingReceive = pendingReceives.poll();
+
+                                if (pendingReceive != null && pendingReceive.getWork() != null && !pendingReceive.getWork().isDone()) {
+                                    Collection<Message> receivedMessages = receiveCore(pendingReceive.maxMessageCount);
+                                    pendingReceive.getWork().complete(receivedMessages);
+                                }
+                            }
+
+                            if (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED) {
+                                    createReceiveLink();
+                            }
+                        }
+                    });
 		}
-		catch (IOException ioException)
-		{
-			onReceive.completeExceptionally(
-					new ServiceBusException(false, "Receive failed while dispatching to Reactor, see cause for more details.", ioException));
+		catch (IOException ioException) {
+                    onReceive.completeExceptionally(
+                                    new OperationCancelledException("Receive failed while dispatching to Reactor, see cause for more details.", ioException));
 		}
 
 		return onReceive;
@@ -354,14 +353,12 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 	@Override
 	public void onReceiveComplete(Delivery delivery)
 	{
-		Message message = null;
-		
 		int msgSize = delivery.pending();
 		byte[] buffer = new byte[msgSize];
 		
 		int read = receiveLink.recv(buffer, 0, msgSize);
 		
-		message = Proton.message();
+		Message message = Proton.message();
 		message.decode(buffer, 0, read);
                 
 		delivery.settle();
