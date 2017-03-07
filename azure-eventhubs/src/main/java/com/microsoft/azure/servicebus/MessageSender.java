@@ -239,7 +239,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 		catch (IOException ioException)
 		{
 			onSendFuture.completeExceptionally(
-					new ServiceBusException(false, "Send failed while dispatching to Reactor, see cause for more details.", ioException));
+					new OperationCancelledException("Send failed while dispatching to Reactor, see cause for more details.", ioException));
 		}
 
 		return onSendFuture;

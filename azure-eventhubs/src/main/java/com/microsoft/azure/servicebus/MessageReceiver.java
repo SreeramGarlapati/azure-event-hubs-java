@@ -61,6 +61,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
         private final ActiveClientTokenManager activeClientTokenManager;
         private final WorkItem<MessageReceiver> linkOpen;
 	private final ConcurrentLinkedQueue<Message> prefetchedMessages;
+        private final ReceiveWork receiveWork;
 	            
 	private int prefetchCount;
         private Receiver receiveLink;
@@ -117,6 +118,8 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                         }
                     }
 		};
+                
+                this.receiveWork = new ReceiveWork();
                 
                 this.tokenAudience = String.format("amqp://%s/%s", underlyingFactory.getHostName(), receivePath);
                 
@@ -284,30 +287,10 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                 pendingReceives.offer(new ReceiveWorkItem(onReceive, receiveTimeout, maxMessageCount));
 		
 		try {
-                    this.underlyingFactory.scheduleOnReactorThread(new DispatchHandler() {
-                        @Override
-                        public void onEvent() {
-
-                            // handle the case when PendingReceive queue got a new Receiver and PrefetchQueue is already full
-                            // and as-a-result, reactor would never raise onFlow event
-                            if (!prefetchedMessages.isEmpty()) {
-                                ReceiveWorkItem pendingReceive = pendingReceives.poll();
-
-                                if (pendingReceive != null && pendingReceive.getWork() != null && !pendingReceive.getWork().isDone()) {
-                                    Collection<Message> receivedMessages = receiveCore(pendingReceive.maxMessageCount);
-                                    pendingReceive.getWork().complete(receivedMessages);
-                                }
-                            }
-
-                            if (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED) {
-                                    createReceiveLink();
-                            }
-                        }
-                    });
+                    this.underlyingFactory.scheduleOnReactorThread(this.receiveWork);
 		}
 		catch (IOException ioException) {
-                    onReceive.completeExceptionally(
-                                    new OperationCancelledException("Receive failed while dispatching to Reactor, see cause for more details.", ioException));
+                    onReceive.completeExceptionally(new OperationCancelledException("Receive failed while dispatching to Reactor, see cause for more details.", ioException));
 		}
 
 		return onReceive;
@@ -366,14 +349,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 		this.prefetchedMessages.add(message);
 		this.underlyingFactory.getRetryPolicy().resetRetryCount(this.getClientId());
 		
-		final ReceiveWorkItem currentReceive = this.pendingReceives.poll();
-		if (currentReceive != null && !currentReceive.getWork().isDone())
-		{
-			List<Message> messages = this.receiveCore(currentReceive.maxMessageCount);
-
-			CompletableFuture<Collection<Message>> future = currentReceive.getWork();
-			future.complete(messages);
-		}
+                this.receiveWork.onEvent();
 	}
 
 	public void onError(final ErrorCondition error)
@@ -712,4 +688,28 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 
             return this.linkClose;
 	}
+        
+        private final class ReceiveWork extends DispatchHandler {
+            
+            @Override
+            public void onEvent() {
+
+                // handle the case when PendingReceive queue got a new Receiver and PrefetchQueue is already full
+                // and as-a-result, reactor would never raise onFlow event
+                ReceiveWorkItem pendingReceive;
+                
+                while (!prefetchedMessages.isEmpty() && (pendingReceive = pendingReceives.poll()) != null) {
+                    
+                    if (pendingReceive.getWork() != null && !pendingReceive.getWork().isDone()) {
+                        
+                        Collection<Message> receivedMessages = receiveCore(pendingReceive.maxMessageCount);
+                        pendingReceive.getWork().complete(receivedMessages);
+                    }
+                }
+                
+                if (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED) {
+                        createReceiveLink();
+                }
+            }
+        }
 }
