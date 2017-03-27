@@ -724,6 +724,11 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 	// actual send on the SenderLink should happen only in this method & should run on Reactor Thread
 	private void processSendWork()
 	{
+                // if the Sender.close() & the sender.Send() call are invoked in parallel - ignore the send call 
+                // - eventually pending sends will be treated as operationcancelled
+                if (this.getIsClosingOrClosed())
+                    return;
+            
 		final Sender sendLinkCurrent = this.sendLink;
 		
 		if (sendLinkCurrent.getLocalState() == EndpointState.CLOSED || sendLinkCurrent.getRemoteState() == EndpointState.CLOSED)
@@ -786,7 +791,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 						{
 							if (!sendData.getWork().isDone())
 							{
-								MessageSender.this.pendingSendsData.remove(deliveryTag);
+								MessageSender.this.pendingSendsData.remove(deliveryTag.deliveryTag);
 								MessageSender.this.throwSenderTimeout(sendData.getWork(), sendData.getLastKnownException());
 							}
 						}

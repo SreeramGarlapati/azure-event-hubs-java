@@ -62,6 +62,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
         private final WorkItem<MessageReceiver> linkOpen;
 	private final ConcurrentLinkedQueue<Message> prefetchedMessages;
         private final ReceiveWork receiveWork;
+        private final CreateAndReceive createAndReceive;
 	            
 	private int prefetchCount;
         private Receiver receiveLink;
@@ -120,6 +121,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 		};
                 
                 this.receiveWork = new ReceiveWork();
+                this.createAndReceive = new CreateAndReceive();
                 
                 this.tokenAudience = String.format("amqp://%s/%s", underlyingFactory.getHostName(), receivePath);
                 
@@ -287,12 +289,12 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                 pendingReceives.offer(new ReceiveWorkItem(onReceive, receiveTimeout, maxMessageCount));
 		
 		try {
-                    this.underlyingFactory.scheduleOnReactorThread(this.receiveWork);
+                    this.underlyingFactory.scheduleOnReactorThread(this.createAndReceive);
 		}
 		catch (IOException ioException) {
                     onReceive.completeExceptionally(new OperationCancelledException("Receive failed while dispatching to Reactor, see cause for more details.", ioException));
 		}
-
+                
 		return onReceive;
 	}
 
@@ -694,10 +696,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
             @Override
             public void onEvent() {
 
-                // handle the case when PendingReceive queue got a new Receiver and PrefetchQueue is already full
-                // and as-a-result, reactor would never raise onFlow event
                 ReceiveWorkItem pendingReceive;
-                
                 while (!prefetchedMessages.isEmpty() && (pendingReceive = pendingReceives.poll()) != null) {
                     
                     if (pendingReceive.getWork() != null && !pendingReceive.getWork().isDone()) {
@@ -706,8 +705,18 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                         pendingReceive.getWork().complete(receivedMessages);
                     }
                 }
+            }
+        }
+        
+        private final class CreateAndReceive extends DispatchHandler {
+            
+            @Override
+            public void onEvent() {
                 
-                if (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED) {
+                receiveWork.onEvent();
+                
+                if (!MessageReceiver.this.getIsClosingOrClosed()
+                     && (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED)) {
                         createReceiveLink();
                 }
             }
