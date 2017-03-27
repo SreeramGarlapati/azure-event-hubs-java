@@ -224,7 +224,24 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 		if (lastKnownError != null)
 		{
 			sendWaiterData.setLastKnownException(lastKnownError);
-		}
+		}                
+                
+                ScheduledFuture<?> timeoutTimerTask = timeoutTask == null ? 
+                        Timer.schedule(new Runnable()
+                            {
+                                @Override
+                                public void run()
+                                {
+                                    if (!sendWaiterData.getWork().isDone())
+                                    {
+                                        MessageSender.this.pendingSendsData.remove(deliveryTag);
+                                        MessageSender.this.throwSenderTimeout(sendWaiterData.getWork(), sendWaiterData.getLastKnownException());
+                                    }
+                                }
+                            }, this.operationTimeout, TimerType.OneTimeRun)
+                        : timeoutTask;
+
+                sendWaiterData.setTimeoutTask(timeoutTimerTask);
 
 		synchronized (this.pendingSendLock)
 		{
@@ -740,15 +757,21 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 		while (sendLinkCurrent.getLocalState() == EndpointState.ACTIVE && sendLinkCurrent.getRemoteState() == EndpointState.ACTIVE
 				&& this.linkCredit > 0)
 		{
-			final WeightedDeliveryTag deliveryTag;
+			final WeightedDeliveryTag weightedDelivery;
 			final ReplayableWorkItem<Void> sendData;
+                        final String deliveryTag;
 			synchronized (this.pendingSendLock)
 			{
-				deliveryTag = this.pendingSends.poll();
-				sendData = deliveryTag != null 
-						? this.pendingSendsData.get(deliveryTag.getDeliveryTag())
-						: null;
-			}
+				weightedDelivery = this.pendingSends.poll();
+                                if (weightedDelivery != null) {
+                                    deliveryTag = weightedDelivery.getDeliveryTag();
+                                    sendData =  this.pendingSendsData.get(deliveryTag);
+                                }
+                                else {
+                                    sendData = null;
+                                    deliveryTag = null;
+                                }
+                        }
 			
 			if (sendData != null)
 			{
@@ -756,7 +779,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 				{
 					// CoreSend could enque Sends into PendingSends Queue and can fail the SendCompletableFuture
 					// (when It fails to schedule the ProcessSendWork on reactor Thread)
-					this.pendingSendsData.remove(sendData);
+					this.pendingSendsData.remove(deliveryTag);
 					continue;
 				}
 				
@@ -767,7 +790,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 				
 				try
 				{
-					delivery = sendLinkCurrent.delivery(deliveryTag.getDeliveryTag().getBytes());
+					delivery = sendLinkCurrent.delivery(deliveryTag.getBytes());
 					delivery.setMessageFormat(sendData.getMessageFormat());
 					
 					sentMsgSize = sendLinkCurrent.send(sendData.getMessage(), 0, sendData.getEncodedMessageSize());
@@ -783,21 +806,6 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 				if (linkAdvance)
 				{
 					this.linkCredit--;
-					
-					ScheduledFuture<?> timeoutTask = Timer.schedule(new Runnable()
-					{
-						@Override
-						public void run()
-						{
-							if (!sendData.getWork().isDone())
-							{
-								MessageSender.this.pendingSendsData.remove(deliveryTag.deliveryTag);
-								MessageSender.this.throwSenderTimeout(sendData.getWork(), sendData.getLastKnownException());
-							}
-						}
-					}, this.operationTimeout, TimerType.OneTimeRun);
-					
-					sendData.setTimeoutTask(timeoutTask);
 					sendData.setWaitingForAck();
 				}
 				else
@@ -814,8 +822,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 						delivery.free();
 					}
 					
-                                        sendData.getWork().completeExceptionally(
-						sendException != null
+                                        sendData.getWork().completeExceptionally(sendException != null
 							? new OperationCancelledException("Send operation failed. Please see cause for more details", sendException)
 							: new OperationCancelledException(
 									String.format(Locale.US, "Send operation failed while advancing delivery(tag: %s) on SendLink(path: %s).", this.sendPath, deliveryTag)));
@@ -823,7 +830,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 			}
 			else
 			{
-				if (deliveryTag != null)
+				if (weightedDelivery != null)
 				{
 					if (TRACE_LOGGER.isLoggable(Level.SEVERE))
 					{
