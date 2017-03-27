@@ -8,15 +8,19 @@ public class PerTestSettings
 	// Properties which are inputs to test setup. Constructor sets up defaults, except for testName.
 	private String inTestName;
 	EventProcessorOptions inOptions; // can be null
-	boolean inDoCheckpoint;
+	PrefabEventProcessor.CheckpointChoices inDoCheckpoint;
 	boolean inEntityDoesNotExist; // Prevents test code from doing certain checks that would fail on nonexistence before reaching product code.
+	boolean inTelltaleOnTimeout; // Generates an empty telltale string, which causes PrefabEventProcessor to trigger telltale on timeout.
+	boolean inHasSenders;
 	
 	PerTestSettings(String testName)
 	{
 		this.inTestName = testName;
 		this.inOptions = EventProcessorOptions.getDefaultOptions();
-		this.inDoCheckpoint = false;
+		this.inDoCheckpoint = PrefabEventProcessor.CheckpointChoices.CKP_NONE;
 		this.inEntityDoesNotExist = false;
+		this.inTelltaleOnTimeout = false;
+		this.inHasSenders = true;
 		
 		this.inoutEPHConstructorArgs = new EPHConstructorArgs();
 	}
@@ -52,6 +56,7 @@ public class PerTestSettings
 		static final int CHECKPOINT_MANAGER_OVERRIDE = 0x0400;
 		static final int LEASE_MANAGER_OVERRIDE = 0x0800;
 		static final int EXPLICIT_MANAGER = CHECKPOINT_MANAGER_OVERRIDE | LEASE_MANAGER_OVERRIDE;
+		static final int TELLTALE_ON_TIMEOUT = 0x1000;
 		
 		private int flags;
 		
