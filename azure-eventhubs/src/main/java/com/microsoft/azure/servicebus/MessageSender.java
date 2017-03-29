@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -652,12 +653,15 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
                     }
                 };		
                 
-                final Consumer<ErrorCondition> onSessionOpenError = new Consumer<ErrorCondition>()
+                final BiConsumer<ErrorCondition, Exception> onSessionOpenError = new BiConsumer<ErrorCondition, Exception>()
                 {
                     @Override
-                    public void accept(ErrorCondition t)
+                    public void accept(ErrorCondition t, Exception u)
                     {
-                        MessageSender.this.onClose(t);
+                        if (t != null)
+                            MessageSender.this.onClose(t);
+                        else if (u != null)
+                            MessageSender.this.onError(u);
                     }
                 };
                 

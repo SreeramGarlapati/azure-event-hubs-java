@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.LinkedList;
 import java.util.List;
@@ -521,12 +522,15 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                 }
             };
             
-            final Consumer<ErrorCondition> onSessionOpenFailed = new Consumer<ErrorCondition>()
+            final BiConsumer<ErrorCondition, Exception> onSessionOpenFailed = new BiConsumer<ErrorCondition, Exception>()
             {
                 @Override
-                public void accept(ErrorCondition t)
+                public void accept(ErrorCondition t, Exception u)
                 {
-                    onError(t);
+                    if (t != null)
+                        onError(t);
+                    else if (u != null)
+                        onError(u);
                 }
             };
             
