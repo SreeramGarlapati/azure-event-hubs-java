@@ -350,6 +350,12 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 
 		if (completionException == null)
 		{
+                        if (this.getIsClosingOrClosed()) {
+                            
+                            this.sendLink.close();
+                            return;
+                        }
+                        
 			this.openLinkTracker = null;
 
 			this.lastKnownLinkError = null;
@@ -604,6 +610,13 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
                     @Override
                     public void accept(Session session) 
                     {
+                        if (MessageSender.this.getIsClosingOrClosed()) {
+                            
+                            MessageSender.this.underlyingFactory.deregisterForConnectionError(MessageSender.this.sendLink);
+                            session.close();
+                            return;
+                        }
+                        
                         final Sender sender = session.sender(TrackingUtil.getLinkName(session));
                         final Target target = new Target();
                         target.setAddress(sendPath);
@@ -648,6 +661,9 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
                         new IOperationResult<Void, Exception>() {
                             @Override
                             public void onComplete(Void result) {
+                                if (MessageSender.this.getIsClosingOrClosed())
+                                    return;
+                                
                                 underlyingFactory.getSession(
                                     sendPath,
                                     onSessionOpen,
@@ -745,16 +761,14 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
                 // - eventually pending sends will be treated as operationcancelled
                 if (this.getIsClosingOrClosed())
                     return;
-            
-		final Sender sendLinkCurrent = this.sendLink;
-		
-		if (sendLinkCurrent.getLocalState() == EndpointState.CLOSED || sendLinkCurrent.getRemoteState() == EndpointState.CLOSED)
+                
+		if (this.sendLink.getLocalState() == EndpointState.CLOSED || this.sendLink.getRemoteState() == EndpointState.CLOSED)
 		{
                         this.recreateSendLink();
                         return;
 		}
 		
-		while (sendLinkCurrent.getLocalState() == EndpointState.ACTIVE && sendLinkCurrent.getRemoteState() == EndpointState.ACTIVE
+		while (this.sendLink.getLocalState() == EndpointState.ACTIVE && this.sendLink.getRemoteState() == EndpointState.ACTIVE
 				&& this.linkCredit > 0)
 		{
 			final WeightedDeliveryTag weightedDelivery;
@@ -790,13 +804,13 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 				
 				try
 				{
-					delivery = sendLinkCurrent.delivery(deliveryTag.getBytes());
+					delivery = this.sendLink.delivery(deliveryTag.getBytes());
 					delivery.setMessageFormat(sendData.getMessageFormat());
 					
-					sentMsgSize = sendLinkCurrent.send(sendData.getMessage(), 0, sendData.getEncodedMessageSize());
+					sentMsgSize = this.sendLink.send(sendData.getMessage(), 0, sendData.getEncodedMessageSize());
 					assert sentMsgSize == sendData.getEncodedMessageSize() : "Contract of the ProtonJ library for Sender.Send API changed";
 	
-					linkAdvance = sendLinkCurrent.advance();
+					linkAdvance = this.sendLink.advance();
 				}
 				catch(Exception exception)
 				{
@@ -898,6 +912,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
             {
                 try
                 {
+                    this.activeClientTokenManager.cancel();
                     this.underlyingFactory.scheduleOnReactorThread(new DispatchHandler()
                         {
                             @Override

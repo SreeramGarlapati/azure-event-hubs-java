@@ -465,6 +465,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     // if the MessageReceiver is closed - we no-longer need to create the link
                     if (MessageReceiver.this.getIsClosingOrClosed()) {
                         
+                        MessageReceiver.this.underlyingFactory.deregisterForConnectionError(MessageReceiver.this.receiveLink);
                         session.close();
                         return;
                     }
@@ -682,13 +683,12 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
             {
                 try
                 {
+                    this.activeClientTokenManager.cancel();
                     this.underlyingFactory.scheduleOnReactorThread(new DispatchHandler()
                         {
                             @Override
                             public void onEvent()
                             {
-                                activeClientTokenManager.cancel();
-                                
                                 if (receiveLink != null && receiveLink.getLocalState() != EndpointState.CLOSED)
                                 {
                                     receiveLink.close();
