@@ -10,13 +10,14 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledFuture;
 import java.util.function.Consumer;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -71,6 +72,8 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 	private Exception lastKnownLinkError;
 	private int nextCreditToFlow;
         private boolean creatingLink;
+        private ScheduledFuture openTimer;
+        private ScheduledFuture closeTimer;
 
 	private MessageReceiver(final MessagingFactory factory,
 			final String name, 
@@ -314,6 +317,8 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 			if (this.linkOpen != null && !this.linkOpen.getWork().isDone())
 			{
 				this.linkOpen.getWork().complete(this);
+                                if (this.openTimer != null)
+                                    this.openTimer.cancel(false);
 			}
 
 			this.lastKnownLinkError = null;
@@ -335,6 +340,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 			{
 				this.setClosed();
 				ExceptionUtil.completeExceptionally(this.linkOpen.getWork(), exception, this);
+                                this.openTimer.cancel(false);
 			}
 
 			this.lastKnownLinkError = exception;
@@ -373,6 +379,9 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 
 		if (this.getIsClosingOrClosed())
 		{
+                        if (this.closeTimer != null)
+                            this.closeTimer.cancel(false);
+                        
 			WorkItem<Collection<Message>> workItem = null;
 			final boolean isTransientException = exception == null ||
 					(exception instanceof ServiceBusException && ((ServiceBusException) exception).getIsTransient());
@@ -583,7 +592,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 	private void scheduleLinkOpenTimeout(final TimeoutTracker timeout)
 	{
 		// timer to signal a timeout if exceeds the operationTimeout on MessagingFactory
-		Timer.schedule(
+		this.openTimer = Timer.schedule(
 				new Runnable()
 				{
 					public void run()
@@ -611,7 +620,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 	private void scheduleLinkCloseTimeout(final TimeoutTracker timeout)
 	{
 		// timer to signal a timeout if exceeds the operationTimeout on MessagingFactory
-		Timer.schedule(
+		this.closeTimer = Timer.schedule(
 				new Runnable()
 				{
 					public void run()
@@ -627,6 +636,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 							}
 
 							ExceptionUtil.completeExceptionally(linkClose, operationTimedout, MessageReceiver.this);
+                                                        MessageReceiver.this.onError((Exception) null);
 						}
 					}
 				}
@@ -684,6 +694,8 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                 try
                 {
                     this.activeClientTokenManager.cancel();
+                    scheduleLinkCloseTimeout(TimeoutTracker.create(operationTimeout));
+                    
                     this.underlyingFactory.scheduleOnReactorThread(new DispatchHandler()
                         {
                             @Override
@@ -692,10 +704,12 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                                 if (receiveLink != null && receiveLink.getLocalState() != EndpointState.CLOSED)
                                 {
                                     receiveLink.close();
-                                    scheduleLinkCloseTimeout(TimeoutTracker.create(operationTimeout));
                                 }
                                 else if (receiveLink == null || receiveLink.getRemoteState() == EndpointState.CLOSED)
                                 {
+                                    if (closeTimer != null)
+                                        closeTimer.cancel(false);
+                                    
                                     linkClose.complete(null);
                                 }
                             }
