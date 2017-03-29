@@ -305,6 +305,12 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
             
 		if (exception == null)
 		{
+                        if (this.getIsClosingOrClosed()) {
+                            
+                            this.receiveLink.close();
+                            return;
+                        }
+                        
 			if (this.linkOpen != null && !this.linkOpen.getWork().isDone())
 			{
 				this.linkOpen.getWork().complete(this);
@@ -410,7 +416,8 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 						@Override
 						public void onEvent()
 						{
-							if (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED)
+							if (!MessageReceiver.this.getIsClosingOrClosed()
+                                                                && (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED))
 							{
 								createReceiveLink();
 								underlyingFactory.getRetryPolicy().incrementRetryCount(getClientId());
@@ -444,7 +451,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 	}
 
 	private void createReceiveLink()
-	{	
+	{
             if (creatingLink)
                 return;
             
@@ -455,6 +462,13 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                 @Override
                 public void accept(Session session)
                 {
+                    // if the MessageReceiver is closed - we no-longer need to create the link
+                    if (MessageReceiver.this.getIsClosingOrClosed()) {
+                        
+                        session.close();
+                        return;
+                    }
+                    
                     final Source source = new Source();
                     source.setAddress(receivePath);
 
@@ -514,6 +528,9 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     new IOperationResult<Void, Exception>() {
                         @Override
                         public void onComplete(Void result) {
+                            if (MessageReceiver.this.getIsClosingOrClosed())
+                                return;
+                            
                             underlyingFactory.getSession(
                                     receivePath,
                                     onSessionOpen,
@@ -669,7 +686,9 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                         {
                             @Override
                             public void onEvent()
-                            {                                    
+                            {
+                                activeClientTokenManager.cancel();
+                                
                                 if (receiveLink != null && receiveLink.getLocalState() != EndpointState.CLOSED)
                                 {
                                     receiveLink.close();
@@ -716,7 +735,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                 receiveWork.onEvent();
                 
                 if (!MessageReceiver.this.getIsClosingOrClosed()
-                     && (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED)) {
+                    && (receiveLink.getLocalState() == EndpointState.CLOSED || receiveLink.getRemoteState() == EndpointState.CLOSED)) {
                         createReceiveLink();
                 }
             }
