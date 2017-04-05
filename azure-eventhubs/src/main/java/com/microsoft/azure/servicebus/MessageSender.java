@@ -192,7 +192,7 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
             final TimeoutTracker tracker,
             final Exception lastKnownError,
             final ScheduledFuture<?> timeoutTask) {
-        this.throwIfClosed(this.lastKnownLinkError);
+        this.throwIfClosed();
 
         final boolean isRetrySend = (onSend != null);
 
@@ -384,8 +384,10 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 
             return;
         } else {
-            this.lastKnownLinkError = completionException == null ? this.lastKnownLinkError : completionException;
-            this.lastKnownErrorReportedAt = Instant.now();
+            synchronized (this.errorConditionLock) {
+                this.lastKnownLinkError = completionException == null ? this.lastKnownLinkError : completionException;
+                this.lastKnownErrorReportedAt = Instant.now();
+            }
 
             final Exception finalCompletionException = completionException == null
                     ? new ServiceBusException(true, "Client encountered transient error for unknown reasons, please retry the operation.") : completionException;
@@ -537,7 +539,9 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
                 MessageSender.this.underlyingFactory.registerForConnectionError(sender);
                 sender.open();
 
-                MessageSender.this.sendLink = sender;
+                synchronized (MessageSender.this.errorConditionLock) {
+                    MessageSender.this.sendLink = sender;
+                }
             }
         };
 
@@ -820,6 +824,13 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
         }
 
         return this.linkClose;
+    }
+
+    @Override
+    protected Exception getLastKnownError() {
+        synchronized (this.errorConditionLock) {
+            return this.lastKnownLinkError;
+        }
     }
 
     private static class WeightedDeliveryTag {

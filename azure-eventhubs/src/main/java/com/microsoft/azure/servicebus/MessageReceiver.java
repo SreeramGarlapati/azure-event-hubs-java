@@ -64,7 +64,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
     private final ConcurrentLinkedQueue<Message> prefetchedMessages;
     private final ReceiveWork receiveWork;
     private final CreateAndReceive createAndReceive;
-    private final Object lastKnownLinkErrorLock;
+    private final Object errorCasesLock;
 
     private int prefetchCount;
     private Receiver receiveLink;
@@ -96,7 +96,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
         this.linkOpen = new WorkItem<>(new CompletableFuture<>(), factory.getOperationTimeout());
 
         this.pendingReceives = new ConcurrentLinkedQueue<>();
-        this.lastKnownLinkErrorLock = new Object();
+        this.errorCasesLock = new Object();
 
         // onOperationTimeout delegate - per receive call
         this.onOperationTimedout = new Runnable() {
@@ -252,7 +252,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
     }
 
     public CompletableFuture<Collection<Message>> receive(final int maxMessageCount) {
-        this.throwIfClosed(this.lastKnownLinkError);
+        this.throwIfClosed();
 
         if (maxMessageCount <= 0 || maxMessageCount > this.prefetchCount) {
             throw new IllegalArgumentException(String.format(Locale.US, "parameter 'maxMessageCount' should be a positive number and should be less than prefetchCount(%s)", this.prefetchCount));
@@ -291,7 +291,9 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     this.openTimer.cancel(false);
             }
 
-            this.lastKnownLinkError = null;
+            synchronized (this.errorCasesLock) {
+                this.lastKnownLinkError = null;
+            }
 
             this.underlyingFactory.getRetryPolicy().resetRetryCount(this.underlyingFactory.getClientId());
 
@@ -355,7 +357,9 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 
             this.linkClose.complete(null);
         } else {
-            this.lastKnownLinkError = exception == null ? this.lastKnownLinkError : exception;
+            synchronized (this.errorCasesLock) {
+                this.lastKnownLinkError = exception == null ? this.lastKnownLinkError : exception;
+            }
 
             final Exception completionException = exception == null
                     ? new ServiceBusException(true, "Client encountered transient error for unknown reasons, please retry the operation.") : exception;
@@ -449,7 +453,9 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 
                 receiver.open();
 
-                MessageReceiver.this.receiveLink = receiver;
+                synchronized (MessageReceiver.this.errorCasesLock) {
+                    MessageReceiver.this.receiveLink = receiver;
+                }
             }
         };
 
@@ -525,7 +531,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                         if (!linkOpen.getWork().isDone()) {
                             final Receiver link;
                             final Exception lastReportedLinkError;
-                            synchronized (lastKnownLinkErrorLock) {
+                            synchronized (errorCasesLock) {
                                 link = MessageReceiver.this.receiveLink;
                                 lastReportedLinkError = MessageReceiver.this.lastKnownLinkError;
                             }
@@ -554,7 +560,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     public void run() {
                         if (!linkClose.isDone()) {
                             final Receiver link;
-                            synchronized (lastKnownLinkErrorLock) {
+                            synchronized (errorCasesLock) {
                                 link = MessageReceiver.this.receiveLink;
                             }
 
@@ -583,7 +589,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
     @Override
     public ErrorContext getContext() {
         final Receiver link;
-        synchronized (this.lastKnownLinkErrorLock) {
+        synchronized (this.errorCasesLock) {
             link = this.receiveLink;
         }
 
@@ -637,6 +643,13 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
         }
 
         return this.linkClose;
+    }
+
+    @Override
+    protected Exception getLastKnownError() {
+        synchronized (this.errorCasesLock) {
+            return this.lastKnownLinkError;
+        }
     }
 
     private final class ReceiveWork extends DispatchHandler {
