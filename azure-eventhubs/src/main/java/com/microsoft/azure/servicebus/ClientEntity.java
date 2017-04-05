@@ -108,5 +108,7 @@ public abstract class ClientEntity {
         }
     }
 
-    protected abstract Exception getLastKnownError();
+    protected Exception getLastKnownError() {
+        return null;
+    }
 }
