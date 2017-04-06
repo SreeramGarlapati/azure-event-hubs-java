@@ -64,7 +64,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
     private final ConcurrentLinkedQueue<Message> prefetchedMessages;
     private final ReceiveWork receiveWork;
     private final CreateAndReceive createAndReceive;
-    private final Object errorCasesLock;
+    private final Object errorConditionLock;
 
     private int prefetchCount;
     private Receiver receiveLink;
@@ -96,7 +96,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
         this.linkOpen = new WorkItem<>(new CompletableFuture<>(), factory.getOperationTimeout());
 
         this.pendingReceives = new ConcurrentLinkedQueue<>();
-        this.errorCasesLock = new Object();
+        this.errorConditionLock = new Object();
 
         // onOperationTimeout delegate - per receive call
         this.onOperationTimedout = new Runnable() {
@@ -291,7 +291,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     this.openTimer.cancel(false);
             }
 
-            synchronized (this.errorCasesLock) {
+            synchronized (this.errorConditionLock) {
                 this.lastKnownLinkError = null;
             }
 
@@ -312,7 +312,9 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     this.openTimer.cancel(false);
             }
 
-            this.lastKnownLinkError = exception;
+            synchronized (this.errorConditionLock) {
+                this.lastKnownLinkError = exception;
+            }
         }
     }
 
@@ -357,7 +359,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 
             this.linkClose.complete(null);
         } else {
-            synchronized (this.errorCasesLock) {
+            synchronized (this.errorConditionLock) {
                 this.lastKnownLinkError = exception == null ? this.lastKnownLinkError : exception;
             }
 
@@ -453,7 +455,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 
                 receiver.open();
 
-                synchronized (MessageReceiver.this.errorCasesLock) {
+                synchronized (MessageReceiver.this.errorConditionLock) {
                     MessageReceiver.this.receiveLink = receiver;
                 }
             }
@@ -531,7 +533,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                         if (!linkOpen.getWork().isDone()) {
                             final Receiver link;
                             final Exception lastReportedLinkError;
-                            synchronized (errorCasesLock) {
+                            synchronized (errorConditionLock) {
                                 link = MessageReceiver.this.receiveLink;
                                 lastReportedLinkError = MessageReceiver.this.lastKnownLinkError;
                             }
@@ -560,7 +562,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                     public void run() {
                         if (!linkClose.isDone()) {
                             final Receiver link;
-                            synchronized (errorCasesLock) {
+                            synchronized (errorConditionLock) {
                                 link = MessageReceiver.this.receiveLink;
                             }
 
@@ -589,7 +591,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
     @Override
     public ErrorContext getContext() {
         final Receiver link;
-        synchronized (this.errorCasesLock) {
+        synchronized (this.errorConditionLock) {
             link = this.receiveLink;
         }
 
@@ -647,7 +649,7 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
 
     @Override
     protected Exception getLastKnownError() {
-        synchronized (this.errorCasesLock) {
+        synchronized (this.errorConditionLock) {
             return this.lastKnownLinkError;
         }
     }

@@ -315,7 +315,10 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 
             this.openLinkTracker = null;
 
-            this.lastKnownLinkError = null;
+            synchronized (this.errorConditionLock) {
+                this.lastKnownLinkError = null;
+            }
+
             this.retryPolicy.resetRetryCount(this.getClientId());
 
             if (!this.linkFirstOpen.isDone()) {
@@ -445,7 +448,10 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 
         if (pendingSendWorkItem != null) {
             if (outcome instanceof Accepted) {
-                this.lastKnownLinkError = null;
+                synchronized (this.errorConditionLock) {
+                    this.lastKnownLinkError = null;
+                }
+
                 this.retryPolicy.resetRetryCount(this.getClientId());
 
                 pendingSendWorkItem.getTimeoutTask().cancel(false);
@@ -457,8 +463,10 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
                 final Exception exception = ExceptionUtil.toException(error);
 
                 if (ExceptionUtil.isGeneralSendError(error.getCondition())) {
-                    this.lastKnownLinkError = exception;
-                    this.lastKnownErrorReportedAt = Instant.now();
+                    synchronized (this.errorConditionLock) {
+                        this.lastKnownLinkError = exception;
+                        this.lastKnownErrorReportedAt = Instant.now();
+                    }
                 }
 
                 final Duration retryInterval = this.retryPolicy.getNextRetryInterval(
@@ -640,7 +648,9 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
 
     @Override
     public void onFlow(final int creditIssued) {
-        this.lastKnownLinkError = null;
+        synchronized (this.errorConditionLock) {
+            this.lastKnownLinkError = null;
+        }
 
         if (creditIssued <= 0)
             return;

@@ -101,7 +101,7 @@ public class CBSChannel {
         @Override
         public void run(IOperationResult<RequestResponseChannel, Exception> operationCallback) {
 
-            Session session = CBSChannel.this.sessionProvider.getSession(
+            final Session session = CBSChannel.this.sessionProvider.getSession(
                     "cbs-session",
                     null,
                     new BiConsumer<ErrorCondition, Exception>() {
