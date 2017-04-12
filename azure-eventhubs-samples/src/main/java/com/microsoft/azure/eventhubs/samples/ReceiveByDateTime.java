@@ -35,13 +35,14 @@ public class ReceiveByDateTime {
         final PartitionReceiver receiver = ehClient.createEpochReceiverSync(
                 EventHubClient.DEFAULT_CONSUMER_GROUP_NAME,
                 partitionId,
-                Instant.now(),
+                Instant.EPOCH,
                 2345);
 
         System.out.println("date-time receiver created...");
 
         try {
-            while (true) {
+            int receivedCount = 0;
+            while (receivedCount++ < 100) {
                 receiver.receive(100).thenAccept(new Consumer<Iterable<EventData>>() {
                     public void accept(Iterable<EventData> receivedEvents) {
                         int batchSize = 0;
@@ -51,7 +52,9 @@ public class ReceiveByDateTime {
                                         receivedEvent.getSystemProperties().getOffset(),
                                         receivedEvent.getSystemProperties().getSequenceNumber(),
                                         receivedEvent.getSystemProperties().getEnqueuedTime()));
-                                System.out.println(String.format("| Message Payload: %s", new String(receivedEvent.getBytes(), Charset.defaultCharset())));
+
+                                if (receivedEvent.getBytes() != null)
+                                    System.out.println(String.format("| Message Payload: %s", new String(receivedEvent.getBytes(), Charset.defaultCharset())));
                                 batchSize++;
                             }
                         }

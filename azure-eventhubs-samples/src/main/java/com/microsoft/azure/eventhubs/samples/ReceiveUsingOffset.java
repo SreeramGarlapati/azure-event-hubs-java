@@ -43,7 +43,9 @@ public class ReceiveUsingOffset {
                 int batchSize = 0;
                 if (receivedEvents != null) {
                     for (EventData receivedEvent : receivedEvents) {
-                        System.out.println(String.format("Message Payload: %s", new String(receivedEvent.getBytes(), Charset.defaultCharset())));
+                        if (receivedEvent.getBytes() != null)
+                            System.out.println(String.format("Message Payload: %s", new String(receivedEvent.getBytes(), Charset.defaultCharset())));
+
                         System.out.println(String.format("Offset: %s, SeqNo: %s, EnqueueTime: %s",
                                 receivedEvent.getSystemProperties().getOffset(),
                                 receivedEvent.getSystemProperties().getSequenceNumber(),
