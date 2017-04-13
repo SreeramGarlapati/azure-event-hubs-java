@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft. All rights reserved.
  * Licensed under the MIT license. See LICENSE file in the project root for full license information.
  */
-package com.microsoft.azure.eventhubs.samples;
+package com.microsoft.azure.eventhubs.samples.Benchmarks;
 
 import com.microsoft.azure.eventhubs.EventData;
 import com.microsoft.azure.eventhubs.EventHubClient;
