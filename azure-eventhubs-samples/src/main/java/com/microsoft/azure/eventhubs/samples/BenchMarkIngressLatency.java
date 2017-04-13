@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutionException;
  * If you are running this against an EventHubs Namespace in a shared public instance
  * - results might slightly vary across runs; if you want more predictable results - use Dedicated EventHubs .
  */
-public class BenchMarkMyIngress {
+public class BenchMarkIngressLatency {
 
     public static void main(String[] args)
             throws ServiceBusException, ExecutionException, InterruptedException, IOException {
