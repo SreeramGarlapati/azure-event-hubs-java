@@ -4,17 +4,25 @@
  */
 package com.microsoft.azure.eventhubs.samples;
 
+import com.microsoft.azure.eventhubs.EventData;
 import com.microsoft.azure.eventhubs.EventHubClient;
 import com.microsoft.azure.servicebus.ConnectionStringBuilder;
 import com.microsoft.azure.servicebus.ServiceBusException;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 
 /*
  * Performance BenchMark is specific to customers load pattern!!
  *
- * This sample is intended to highlight various load parameters involved
+ * This sample is intended to highlight various variables available to tune latencies
  * - One variable that cannot be exercised in Code - is Network proximity
  *  (make sure to run in same region/AzureDataCenter as your target scenario - to get identical results)
  *
@@ -34,10 +42,10 @@ public class BenchMarkIngressLatency {
 
 
         // ***************************************************************************************************************
-        // List of parameters involved
+        // List of variables involved
         // 1 - EVENT SIZE
         // 2 - NO OF CONCURRENT SENDS per sec
-        // 3 - NO OF EVENTS - CLIENTS CAN BATCH & SEND <-- and there by optimize on ACKs returned from the Service
+        // 3 - NO OF EVENTS - CLIENTS CAN BATCH & SEND <-- and there by optimize on ACKs returned from the Service (typically, this number is supposed to help bring 2 down)
         // 4 - NO OF SENDERS PER CONNECTION <-- This sample doesn't include this / only demonstrates what can be achieved using 1 Sender AMQP link using 1 Connection
         // ***************************************************************************************************************
         final int EVENT_SIZE = 2048; // 2k
@@ -51,9 +59,29 @@ public class BenchMarkIngressLatency {
         final EventHubClient ehClient = EventHubClient.createFromConnectionStringSync(connStr.toString());
 
 
-        // generate eventdatas with load params
+        for (int dataSetCount = 0; dataSetCount < 10000; dataSetCount++) {
+            final List<EventData> eventDataList = new LinkedList<>();
 
+            for (int batchSize = 0; batchSize < BATCH_SIZE; batchSize++) {
+                final byte[] payload = new byte[EVENT_SIZE];
+                Arrays.fill(payload, (byte) 32);
+                final EventData eventData = new EventData(payload);
+                eventDataList.add(eventData);
+            }
 
-        // figure out how to calculate percentiles
+            final CompletableFuture<Void>[] sendTasks = new CompletableFuture[NO_OF_CONCURRENT_SENDS];
+            for (int concurrentSends = 0; concurrentSends < NO_OF_CONCURRENT_SENDS; concurrentSends++) {
+                final Instant beforeSend = Instant.now();
+                sendTasks[concurrentSends] = ehClient.send(eventDataList).whenComplete(new BiConsumer<Void, Throwable>() {
+                    @Override
+                    public void accept(Void aVoid, Throwable throwable) {
+                        System.out.println(String.format("%s,%s,%s", throwable == null ? "success" : "failure", Duration.between(Instant.now(), beforeSend).toMillis()));
+                    }
+                });
+            }
+
+            // wait for the first send to return - to control the send-pipe line speed & degree of parallelism
+            CompletableFuture.anyOf(sendTasks).get();
+        }
     }
 }
