@@ -36,6 +36,7 @@ public final class EventHubClientPool {
                 @Override
                 public void accept(EventHubClient eventHubClient) {
                     clients[clientsIndex] = eventHubClient;
+                    
                 }
             });
         }
