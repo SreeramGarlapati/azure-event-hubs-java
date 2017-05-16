@@ -12,7 +12,10 @@ import org.apache.qpid.proton.amqp.messaging.AmqpValue;
 import org.apache.qpid.proton.amqp.messaging.ApplicationProperties;
 import org.apache.qpid.proton.amqp.messaging.Data;
 import org.apache.qpid.proton.amqp.messaging.MessageAnnotations;
+import org.apache.qpid.proton.codec.EncoderImpl;
+import org.apache.qpid.proton.codec.messaging.MessageAnnotationsType;
 import org.apache.qpid.proton.message.Message;
+import org.apache.qpid.proton.message.impl.MessageImpl;
 
 public class AmqpUtil {
 
@@ -56,6 +59,7 @@ public class AmqpUtil {
         if (amqpMessage == null) {
             return 0;
         }
+        EncoderImpl
 
         int payloadSize = getPayloadSize(amqpMessage);
 
