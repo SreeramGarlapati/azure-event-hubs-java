@@ -529,8 +529,6 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
         if (this.creatingLink)
             return;
 
-        this.creatingLink = true;
-
         final Consumer<Session> onSessionOpen = new Consumer<Session>() {
             @Override
             public void accept(Session session) {
@@ -582,6 +580,11 @@ public class MessageSender extends ClientEntity implements IAmqpSender, IErrorCo
                         public void onComplete(Void result) {
                             if (MessageSender.this.getIsClosingOrClosed())
                                 return;
+
+                            if (creatingLink)
+                                return;
+
+                            creatingLink = true;
 
                             underlyingFactory.getSession(
                                     sendPath,

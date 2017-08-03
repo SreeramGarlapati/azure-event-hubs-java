@@ -408,10 +408,8 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
     }
 
     private void createReceiveLink() {
-        if (creatingLink)
+        if (this.creatingLink)
             return;
-
-        this.creatingLink = true;
 
         final Consumer<Session> onSessionOpen = new Consumer<Session>() {
             @Override
@@ -481,6 +479,11 @@ public final class MessageReceiver extends ClientEntity implements IAmqpReceiver
                         public void onComplete(Void result) {
                             if (MessageReceiver.this.getIsClosingOrClosed())
                                 return;
+
+                            if (creatingLink)
+                                return;
+
+                            creatingLink = true;
 
                             underlyingFactory.getSession(
                                     receivePath,
