@@ -41,7 +41,9 @@ public class ProxySendTest extends SasTokenTestBase {
     public static void cleanupClient() throws Exception {
 
         SendTest.cleanupClient();
-        proxyServer.stop();
+        if (proxyServer != null) {
+            proxyServer.stop();
+        }
     }
 
     @Test

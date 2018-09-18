@@ -35,7 +35,9 @@ public class ProxyReceiveTest extends SasTokenTestBase {
     @AfterClass()
     public static void cleanup() throws Exception {
         ReceiveTest.cleanup();
-        proxyServer.stop();
+        if (proxyServer != null) {
+            proxyServer.stop();
+        }
     }
 
     @Test()
