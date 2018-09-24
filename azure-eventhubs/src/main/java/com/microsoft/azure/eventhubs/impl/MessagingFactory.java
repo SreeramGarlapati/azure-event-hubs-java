@@ -487,7 +487,7 @@ public final class MessagingFactory extends ClientEntity implements AmqpConnecti
                     this.hasStarted = true;
                 }
 
-                if (!Thread.interrupted() && this.rctr.process()) {
+                if (!Thread.interrupted() && ProtonUtil.processAndHandleKnownIssues(this.rctr)) {
                     try {
                         this.executor.execute(this);
                         reScheduledReactor = true;
