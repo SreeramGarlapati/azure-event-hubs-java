@@ -36,7 +36,7 @@ public final class ProtonUtil {
             final Throwable cause = handlerException.getCause();
             if (cause == null) {
                 // we do not know - why reactor threw Handler Exception
-                // so, this cannot be handled.
+                // as cause=null; so, this cannot be handled.
                 throw handlerException;
             }
 
@@ -48,7 +48,9 @@ public final class ProtonUtil {
             if (cause instanceof NullPointerException
                     && cause.getMessage() != null
                     && cause.getMessage().startsWith("uncorrelated channel: ")
-                    && cause.toString().contains(TransportImpl.class.toString() + ".handleBegin")) {
+                    && ExceptionUtil
+                            .toStackTraceString(cause, StringUtil.EMPTY)
+                            .contains(TransportImpl.class.getName() + ".handleBegin")) {
                 // handler: ignore the error and continue
                 return true;
             }
